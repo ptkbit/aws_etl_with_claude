@@ -1,0 +1,94 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ─── Virtual Environments ────────────────────────────────────────────────────
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ─── AWS & Credentials ───────────────────────────────────────────────────────
+.aws/
+*.pem
+*.key
+*.p12
+secrets.json
+*.secret
+samconfig.toml
+cdk.out/
+.aws-sam/
+
+# ─── IDE & Editors ───────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ─── Logs & Temp ─────────────────────────────────────────────────────────────
+*.log
+logs/
+*.tmp
+*.temp
+
+# ─── Jupyter ─────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ─── Local data (keep sample data, ignore local test downloads) ──────────────
+data/local/
+data/raw/
+data/downloads/
+
+# ─── Packaging ───────────────────────────────────────────────────────────────
+*.zip
+*.tar.gz
+*.whl
+lambda/package/
+lambda/*.zip
+glue/package/
