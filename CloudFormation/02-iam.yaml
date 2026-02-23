@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  ClinicalTrialAEPipeline — IAM Layer.
+  ClinicalTrialAEPipeline -- IAM Layer.
   Creates execution roles for Glue (ETL + Crawler) and Lambda (S3 trigger).
   Depends on: 01-storage.yaml (imports bucket ARNs via cross-stack references).
 

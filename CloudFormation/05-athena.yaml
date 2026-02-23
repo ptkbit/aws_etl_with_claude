@@ -1,13 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  ClinicalTrialAEPipeline — Athena & Query Layer.
+  ClinicalTrialAEPipeline -- Athena & Query Layer.
   Creates an Athena workgroup, a Glue Crawler for the quarantine zone,
   and saved named queries for common analytical and operational tasks.
   Depends on: 01-storage.yaml, 02-iam.yaml, 03-glue.yaml.
 
   Table names after crawlers run:
-    processed_adverse_events  ← valid records (partitioned by study_id)
-    quarantine_adverse_events ← invalid records with validation_error column
+    processed_adverse_events  <- valid records (partitioned by study_id)
+    quarantine_adverse_events <- invalid records with validation_error column
 
 Resources:
 
@@ -40,10 +40,10 @@ Resources:
           Value: dev
 
   # ---------------------------------------------------------------------------
-  # Glue Crawler — Quarantine Zone
+  # Glue Crawler -- Quarantine Zone
   # Crawls the quarantine S3 zone so invalid records are also queryable via
   # Athena for debugging and data quality audits.
-  # TablePrefix "quarantine_" → table name: quarantine_adverse_events
+  # TablePrefix "quarantine_" -> table name: quarantine_adverse_events
   # Trigger manually: aws glue start-crawler --name ctae-quarantine-crawler
   # ---------------------------------------------------------------------------
   QuarantineCrawler:
@@ -75,7 +75,7 @@ Resources:
         Environment: dev
 
   # ---------------------------------------------------------------------------
-  # Named Queries — saved in the ctae-workgroup for quick reuse
+  # Named Queries -- saved in the ctae-workgroup for quick reuse
   # ---------------------------------------------------------------------------
 
   QueryPreviewProcessed:

@@ -1,13 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  ClinicalTrialAEPipeline — Storage Layer.
+  ClinicalTrialAEPipeline -- Storage Layer.
   Creates S3 buckets for raw, processed, and quarantine zones
   with encryption, public-access blocking, and versioning.
 
 Resources:
 
   # ---------------------------------------------------------------------------
-  # Raw zone — landing bucket for incoming adverse-event CSV files
+  # Raw zone -- landing bucket for incoming adverse-event CSV files
   # ---------------------------------------------------------------------------
   RawBucket:
     Type: AWS::S3::Bucket
@@ -37,7 +37,7 @@ Resources:
           Value: dev
 
   # ---------------------------------------------------------------------------
-  # Processed zone — valid records written as Parquet, partitioned by study_id
+  # Processed zone -- valid records written as Parquet, partitioned by study_id
   # ---------------------------------------------------------------------------
   ProcessedBucket:
     Type: AWS::S3::Bucket
@@ -59,7 +59,7 @@ Resources:
           Value: dev
 
   # ---------------------------------------------------------------------------
-  # Quarantine zone — invalid records with validation_error column
+  # Quarantine zone -- invalid records with validation_error column
   # ---------------------------------------------------------------------------
   QuarantineBucket:
     Type: AWS::S3::Bucket
@@ -81,7 +81,7 @@ Resources:
           Value: dev
 
   # ---------------------------------------------------------------------------
-  # Athena results bucket — query output storage
+  # Athena results bucket -- query output storage
   # ---------------------------------------------------------------------------
   AthenaResultsBucket:
     Type: AWS::S3::Bucket

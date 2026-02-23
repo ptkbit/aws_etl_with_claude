@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  ClinicalTrialAEPipeline — Glue Layer.
+  ClinicalTrialAEPipeline -- Glue Layer.
   Creates the Glue Data Catalog database, ETL job, and Crawler.
   Depends on: 01-storage.yaml (bucket names/ARNs) and 02-iam.yaml (role ARN).
 
@@ -20,14 +20,14 @@ Resources:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
         Name: ctae_database
-        Description: Clinical Trial Adverse Events — Glue Data Catalog database
+        Description: Clinical Trial Adverse Events -- Glue Data Catalog database
 
   # ---------------------------------------------------------------------------
   # Glue ETL Job
   # Triggered by Lambda with --s3_input_bucket and --s3_input_key arguments.
   # Reads raw CSV, validates against pharma domain rules, and writes:
-  #   valid records   → processed zone (Parquet, partitioned by study_id)
-  #   invalid records → quarantine zone (Parquet + validation_error column)
+  #   valid records   -> processed zone (Parquet, partitioned by study_id)
+  #   invalid records -> quarantine zone (Parquet + validation_error column)
   #
   # Glue 4.0 uses Python 3.10 and Spark 3.3. NumberOfWorkers: 2 (G.1X) is
   # the minimum billable configuration (~$0.15 per 10-minute run).
@@ -42,7 +42,7 @@ Resources:
       WorkerType: G.1X
       NumberOfWorkers: 2
       MaxRetries: 0
-      Timeout: 10  # minutes — minimum billing unit; keeps dev costs low
+      Timeout: 10  # minutes -- minimum billing unit; keeps dev costs low
       Command:
         Name: glueetl
         PythonVersion: "3"
@@ -66,7 +66,7 @@ Resources:
         Environment: dev
 
   # ---------------------------------------------------------------------------
-  # Glue Crawler — Processed Zone
+  # Glue Crawler -- Processed Zone
   # Crawls the processed S3 zone after ETL runs and updates the Data Catalog
   # so Athena always sees current partition metadata.
   #

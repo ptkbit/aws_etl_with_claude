@@ -1,12 +1,12 @@
 """
-handler.py — Lambda pipeline trigger for ClinicalTrialAEPipeline
+handler.py -- Lambda pipeline trigger for ClinicalTrialAEPipeline
 Runtime: Python 3.13
 
 Handles two EventBridge event types:
   1. aws.s3 / Object Created
-       → Starts the Glue ETL job with the S3 bucket and key as arguments.
+       -> Starts the Glue ETL job with the S3 bucket and key as arguments.
   2. aws.glue / Glue Job State Change (state: SUCCEEDED)
-       → Starts the Glue Crawler to refresh the Data Catalog partition metadata.
+       -> Starts the Glue Crawler to refresh the Data Catalog partition metadata.
 
 Environment variables (set by CloudFormation):
   GLUE_JOB_NAME : name of the Glue ETL job to start
@@ -29,14 +29,14 @@ CRAWLER_NAME = os.environ["CRAWLER_NAME"]
 
 def lambda_handler(event, context):
     source = event.get("source", "")
-    logger.info(f"Event received — source: {source}")
+    logger.info(f"Event received -- source: {source}")
 
     if source == "aws.s3":
         _handle_s3_event(event)
     elif source == "aws.glue":
         _handle_glue_event(event)
     else:
-        logger.warning(f"Unrecognized event source: {source!r} — ignoring")
+        logger.warning(f"Unrecognized event source: {source!r} -- ignoring")
 
 
 def _handle_s3_event(event: dict) -> None:
@@ -55,7 +55,7 @@ def _handle_s3_event(event: dict) -> None:
         },
     )
     run_id = response["JobRunId"]
-    logger.info(f"Glue job '{GLUE_JOB_NAME}' started — run ID: {run_id}")
+    logger.info(f"Glue job '{GLUE_JOB_NAME}' started -- run ID: {run_id}")
 
 
 def _handle_glue_event(event: dict) -> None:
@@ -71,7 +71,7 @@ def _handle_glue_event(event: dict) -> None:
             glue.start_crawler(Name=CRAWLER_NAME)
             logger.info(f"Crawler '{CRAWLER_NAME}' started successfully")
         except glue.exceptions.CrawlerRunningException:
-            # Crawler may already be running from a concurrent job run — safe to skip
+            # Crawler may already be running from a concurrent job run -- safe to skip
             logger.warning(
-                f"Crawler '{CRAWLER_NAME}' is already running — skipping"
+                f"Crawler '{CRAWLER_NAME}' is already running -- skipping"
             )

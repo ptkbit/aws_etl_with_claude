@@ -1,5 +1,5 @@
 """
-adverse_events_etl.py — AWS Glue PySpark ETL Job
+adverse_events_etl.py -- AWS Glue PySpark ETL Job
 ClinicalTrialAEPipeline
 
 Reads a raw adverse event CSV from S3, validates each record against
@@ -166,7 +166,7 @@ def main():
     logger.info(f"Records read: {total_count}")
 
     if total_count == 0:
-        logger.warning("Input file is empty — nothing to process.")
+        logger.warning("Input file is empty -- nothing to process.")
         job.commit()
         return
 
@@ -195,7 +195,7 @@ def main():
     logger.info(f"Invalid records : {invalid_count}")
 
     # -----------------------------------------------------------------------
-    # Write valid records → processed zone (Parquet, partitioned by study_id)
+    # Write valid records -> processed zone (Parquet, partitioned by study_id)
     # PII note: only subject_id is carried forward; no patient names or DOBs.
     # -----------------------------------------------------------------------
     if valid_count > 0:
@@ -203,7 +203,7 @@ def main():
         logger.info(f"Written {valid_count} valid records to {processed_path}")
 
     # -----------------------------------------------------------------------
-    # Write invalid records → quarantine zone (Parquet + validation_error)
+    # Write invalid records -> quarantine zone (Parquet + validation_error)
     # Records are never silently dropped; every failure is captured.
     # -----------------------------------------------------------------------
     if invalid_count > 0:

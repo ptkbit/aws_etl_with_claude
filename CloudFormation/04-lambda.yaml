@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  ClinicalTrialAEPipeline — Lambda & EventBridge Layer.
+  ClinicalTrialAEPipeline -- Lambda & EventBridge Layer.
   Creates the pipeline trigger Lambda and two EventBridge rules:
-    Rule 1: S3 ObjectCreated on raw zone → Lambda → starts Glue ETL job
-    Rule 2: Glue job SUCCEEDED         → Lambda → starts Glue Crawler
+    Rule 1: S3 ObjectCreated on raw zone -> Lambda -> starts Glue ETL job
+    Rule 2: Glue job SUCCEEDED         -> Lambda -> starts Glue Crawler
   Depends on: 01-storage.yaml, 02-iam.yaml, 03-glue.yaml.
 
   Deployment note: Upload the Lambda zip to S3 BEFORE deploying this stack:
@@ -14,10 +14,10 @@ Description: >
 Resources:
 
   # ---------------------------------------------------------------------------
-  # Lambda function — pipeline trigger
+  # Lambda function -- pipeline trigger
   # Handles two event types routed from EventBridge:
-  #   aws.s3  → starts Glue ETL job
-  #   aws.glue (SUCCEEDED) → starts Glue Crawler
+  #   aws.s3  -> starts Glue ETL job
+  #   aws.glue (SUCCEEDED) -> starts Glue Crawler
   # Runtime: Python 3.13
   # ---------------------------------------------------------------------------
   TriggerFunction:
@@ -45,9 +45,9 @@ Resources:
           Value: dev
 
   # ---------------------------------------------------------------------------
-  # EventBridge Rule 1: S3 ObjectCreated → Lambda
+  # EventBridge Rule 1: S3 ObjectCreated -> Lambda
   # Matches CSV uploads to raw/adverse_events/ in the raw bucket.
-  # S3 → EventBridge forwarding is enabled on the raw bucket (01-storage.yaml).
+  # S3 -> EventBridge forwarding is enabled on the raw bucket (01-storage.yaml).
   # ---------------------------------------------------------------------------
   S3UploadRule:
     Type: AWS::Events::Rule
@@ -80,7 +80,7 @@ Resources:
       SourceArn: !GetAtt S3UploadRule.Arn
 
   # ---------------------------------------------------------------------------
-  # EventBridge Rule 2: Glue job SUCCEEDED → Lambda → Crawler
+  # EventBridge Rule 2: Glue job SUCCEEDED -> Lambda -> Crawler
   # Glue automatically emits state-change events to EventBridge.
   # Only SUCCEEDED state is matched so failed/stopped runs don't trigger a crawl.
   # ---------------------------------------------------------------------------

@@ -1,11 +1,11 @@
 -- =============================================================================
--- ClinicalTrialAEPipeline — Athena Reference Queries
+-- ClinicalTrialAEPipeline -- Athena Reference Queries
 -- Database : ctae_database
 -- Workgroup: ctae-workgroup
 --
 -- Tables (created by Glue Crawlers after first ETL run):
---   processed_adverse_events  — valid records, partitioned by study_id
---   quarantine_adverse_events — invalid records with validation_error column
+--   processed_adverse_events  -- valid records, partitioned by study_id
+--   quarantine_adverse_events -- invalid records with validation_error column
 --
 -- Run all queries in the ctae-workgroup so results land in the Athena
 -- results bucket and the 1 GB scan cap is enforced.
@@ -13,7 +13,7 @@
 
 
 -- -----------------------------------------------------------------------------
--- 1. PREVIEW — Most recent valid records
+-- 1. PREVIEW -- Most recent valid records
 -- -----------------------------------------------------------------------------
 SELECT
     subject_id,
@@ -29,7 +29,7 @@ LIMIT 100;
 
 
 -- -----------------------------------------------------------------------------
--- 2. AGGREGATION — Event counts by study and severity
+-- 2. AGGREGATION -- Event counts by study and severity
 -- -----------------------------------------------------------------------------
 SELECT
     study_id,
@@ -41,7 +41,7 @@ ORDER BY study_id, event_count DESC;
 
 
 -- -----------------------------------------------------------------------------
--- 3. HIGH SEVERITY — SEVERE and LIFE_THREATENING events with reporting lag
+-- 3. HIGH SEVERITY -- SEVERE and LIFE_THREATENING events with reporting lag
 -- -----------------------------------------------------------------------------
 SELECT
     subject_id,
@@ -57,7 +57,7 @@ ORDER BY onset_date DESC;
 
 
 -- -----------------------------------------------------------------------------
--- 4. PARTITION CHECK — Record counts per study partition
+-- 4. PARTITION CHECK -- Record counts per study partition
 -- Useful to verify the partitionBy(study_id) layout is correct.
 -- -----------------------------------------------------------------------------
 SELECT
@@ -73,7 +73,7 @@ ORDER BY study_id;
 
 
 -- -----------------------------------------------------------------------------
--- 5. QUARANTINE AUDIT — Inspect all invalid records
+-- 5. QUARANTINE AUDIT -- Inspect all invalid records
 -- -----------------------------------------------------------------------------
 SELECT
     subject_id,
@@ -90,7 +90,7 @@ LIMIT 200;
 
 
 -- -----------------------------------------------------------------------------
--- 6. QUARANTINE SUMMARY — Error frequency by validation rule
+-- 6. QUARANTINE SUMMARY -- Error frequency by validation rule
 -- -----------------------------------------------------------------------------
 SELECT
     validation_error,
@@ -101,7 +101,7 @@ ORDER BY record_count DESC;
 
 
 -- -----------------------------------------------------------------------------
--- 7. DATA QUALITY RATIO — Valid vs. invalid records per ingestion run
+-- 7. DATA QUALITY RATIO -- Valid vs. invalid records per ingestion run
 -- Join on ingestion_timestamp truncated to minute for approximate grouping.
 -- -----------------------------------------------------------------------------
 WITH processed AS (
