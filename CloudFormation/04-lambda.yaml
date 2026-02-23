@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ClinicalTrialAEPipeline — Lambda & EventBridge Layer.
+  Creates the pipeline trigger Lambda and two EventBridge rules:
+    Rule 1: S3 ObjectCreated on raw zone → Lambda → starts Glue ETL job
+    Rule 2: Glue job SUCCEEDED         → Lambda → starts Glue Crawler
+  Depends on: 01-storage.yaml, 02-iam.yaml, 03-glue.yaml.
+
+  Deployment note: Upload the Lambda zip to S3 BEFORE deploying this stack:
+    cd lambda
+    zip lambda_trigger.zip handler.py
+    aws s3 cp lambda_trigger.zip s3://<raw-bucket>/scripts/lambda_trigger.zip
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Lambda function — pipeline trigger
+  # Handles two event types routed from EventBridge:
+  #   aws.s3  → starts Glue ETL job
+  #   aws.glue (SUCCEEDED) → starts Glue Crawler
+  # Runtime: Python 3.13
+  # ---------------------------------------------------------------------------
+  TriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ctae-pipeline-trigger
+      Description: >
+        Starts the Glue ETL job on S3 upload; starts the Crawler on job success.
+      Runtime: python3.13
+      Handler: handler.lambda_handler
+      Role: !ImportValue ctae-lambda-role-arn
+      Timeout: 30
+      MemorySize: 128
+      Code:
+        S3Bucket: !ImportValue ctae-raw-bucket-name
+        S3Key: scripts/lambda_trigger.zip
+      Environment:
+        Variables:
+          GLUE_JOB_NAME: !ImportValue ctae-glue-job-name
+          CRAWLER_NAME: !ImportValue ctae-crawler-name
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
+  # EventBridge Rule 1: S3 ObjectCreated → Lambda
+  # Matches CSV uploads to raw/adverse_events/ in the raw bucket.
+  # S3 → EventBridge forwarding is enabled on the raw bucket (01-storage.yaml).
+  # ---------------------------------------------------------------------------
+  S3UploadRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: ctae-s3-upload-rule
+      Description: Routes S3 ObjectCreated events for raw adverse event CSVs to Lambda
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !ImportValue ctae-raw-bucket-name
+          object:
+            key:
+              - prefix: "raw/adverse_events/"
+      State: ENABLED
+      Targets:
+        - Id: TriggerLambdaOnUpload
+          Arn: !GetAtt TriggerFunction.Arn
+
+  LambdaPermissionForS3Rule:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt S3UploadRule.Arn
+
+  # ---------------------------------------------------------------------------
+  # EventBridge Rule 2: Glue job SUCCEEDED → Lambda → Crawler
+  # Glue automatically emits state-change events to EventBridge.
+  # Only SUCCEEDED state is matched so failed/stopped runs don't trigger a crawl.
+  # ---------------------------------------------------------------------------
+  GlueSuccessRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: ctae-glue-success-rule
+      Description: Starts the Glue Crawler when the ETL job succeeds
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - Glue Job State Change
+        detail:
+          jobName:
+            - !ImportValue ctae-glue-job-name
+          state:
+            - SUCCEEDED
+      State: ENABLED
+      Targets:
+        - Id: TriggerLambdaOnGlueSuccess
+          Arn: !GetAtt TriggerFunction.Arn
+
+  LambdaPermissionForGlueRule:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GlueSuccessRule.Arn
+
+Outputs:
+
+  TriggerFunctionArn:
+    Description: ARN of the pipeline trigger Lambda function
+    Value: !GetAtt TriggerFunction.Arn
+    Export:
+      Name: ctae-trigger-lambda-arn
+
+  TriggerFunctionName:
+    Description: Name of the pipeline trigger Lambda function
+    Value: !Ref TriggerFunction
+    Export:
+      Name: ctae-trigger-lambda-name

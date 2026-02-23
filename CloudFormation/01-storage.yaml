@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ClinicalTrialAEPipeline — Storage Layer.
+  Creates S3 buckets for raw, processed, and quarantine zones
+  with encryption, public-access blocking, and versioning.
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Raw zone — landing bucket for incoming adverse-event CSV files
+  # ---------------------------------------------------------------------------
+  RawBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-ctae-raw"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      # Enable EventBridge notifications so S3 ObjectCreated events are
+      # forwarded to EventBridge. The rule in 04-lambda.yaml filters and
+      # routes these events to the Lambda trigger function.
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
+  # Processed zone — valid records written as Parquet, partitioned by study_id
+  # ---------------------------------------------------------------------------
+  ProcessedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-ctae-processed"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
+  # Quarantine zone — invalid records with validation_error column
+  # ---------------------------------------------------------------------------
+  QuarantineBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-ctae-quarantine"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
+  # Athena results bucket — query output storage
+  # ---------------------------------------------------------------------------
+  AthenaResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-${AWS::Region}-ctae-athena-results"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireAthenaResults
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+Outputs:
+
+  RawBucketName:
+    Description: Name of the raw S3 bucket
+    Value: !Ref RawBucket
+    Export:
+      Name: ctae-raw-bucket-name
+
+  RawBucketArn:
+    Description: ARN of the raw S3 bucket
+    Value: !GetAtt RawBucket.Arn
+    Export:
+      Name: ctae-raw-bucket-arn
+
+  ProcessedBucketName:
+    Description: Name of the processed S3 bucket
+    Value: !Ref ProcessedBucket
+    Export:
+      Name: ctae-processed-bucket-name
+
+  ProcessedBucketArn:
+    Description: ARN of the processed S3 bucket
+    Value: !GetAtt ProcessedBucket.Arn
+    Export:
+      Name: ctae-processed-bucket-arn
+
+  QuarantineBucketName:
+    Description: Name of the quarantine S3 bucket
+    Value: !Ref QuarantineBucket
+    Export:
+      Name: ctae-quarantine-bucket-name
+
+  QuarantineBucketArn:
+    Description: ARN of the quarantine S3 bucket
+    Value: !GetAtt QuarantineBucket.Arn
+    Export:
+      Name: ctae-quarantine-bucket-arn
+
+  AthenaResultsBucketName:
+    Description: Name of the Athena results S3 bucket
+    Value: !Ref AthenaResultsBucket
+    Export:
+      Name: ctae-athena-results-bucket-name
+
+  AthenaResultsBucketArn:
+    Description: ARN of the Athena results S3 bucket
+    Value: !GetAtt AthenaResultsBucket.Arn
+    Export:
+      Name: ctae-athena-results-bucket-arn

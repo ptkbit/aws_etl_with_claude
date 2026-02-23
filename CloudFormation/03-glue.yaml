@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ClinicalTrialAEPipeline — Glue Layer.
+  Creates the Glue Data Catalog database, ETL job, and Crawler.
+  Depends on: 01-storage.yaml (bucket names/ARNs) and 02-iam.yaml (role ARN).
+
+  Deployment note: Upload glue/adverse_events_etl.py to
+  s3://<raw-bucket>/scripts/adverse_events_etl.py BEFORE deploying this stack.
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Glue Data Catalog Database
+  # All tables (processed + quarantine) are registered here.
+  # Athena queries against this database.
+  # ---------------------------------------------------------------------------
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: ctae_database
+        Description: Clinical Trial Adverse Events — Glue Data Catalog database
+
+  # ---------------------------------------------------------------------------
+  # Glue ETL Job
+  # Triggered by Lambda with --s3_input_bucket and --s3_input_key arguments.
+  # Reads raw CSV, validates against pharma domain rules, and writes:
+  #   valid records   → processed zone (Parquet, partitioned by study_id)
+  #   invalid records → quarantine zone (Parquet + validation_error column)
+  #
+  # Glue 4.0 uses Python 3.10 and Spark 3.3. NumberOfWorkers: 2 (G.1X) is
+  # the minimum billable configuration (~$0.15 per 10-minute run).
+  # ---------------------------------------------------------------------------
+  GlueETLJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: ctae-adverse-events-etl
+      Description: Validates and transforms raw adverse event CSV files to Parquet
+      Role: !ImportValue ctae-glue-role-arn
+      GlueVersion: "4.0"
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+      MaxRetries: 0
+      Timeout: 10  # minutes — minimum billing unit; keeps dev costs low
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: !Sub
+          - "s3://${BucketName}/scripts/adverse_events_etl.py"
+          - BucketName: !ImportValue ctae-raw-bucket-name
+      DefaultArguments:
+        "--job-language": "python"
+        "--job-bookmark-option": "job-bookmark-disable"
+        "--enable-metrics": "true"
+        "--enable-continuous-cloudwatch-log": "true"
+        "--enable-continuous-cloudwatch-log-filter": "true"
+        "--processed_path": !Sub
+          - "s3://${BucketName}/processed/adverse_events/"
+          - BucketName: !ImportValue ctae-processed-bucket-name
+        "--quarantine_path": !Sub
+          - "s3://${BucketName}/quarantine/adverse_events/"
+          - BucketName: !ImportValue ctae-quarantine-bucket-name
+      Tags:
+        Project: ClinicalTrialAEPipeline
+        Environment: dev
+
+  # ---------------------------------------------------------------------------
+  # Glue Crawler — Processed Zone
+  # Crawls the processed S3 zone after ETL runs and updates the Data Catalog
+  # so Athena always sees current partition metadata.
+  #
+  # No schedule is set here; the crawler is triggered by Lambda after the
+  # Glue job completes (via EventBridge rule defined in the Lambda stack).
+  # Run manually with: aws glue start-crawler --name ctae-processed-crawler
+  # ---------------------------------------------------------------------------
+  ProcessedCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: ctae-processed-crawler
+      Description: Crawls processed zone to update Glue Data Catalog partitions
+      Role: !ImportValue ctae-glue-role-arn
+      DatabaseName: !Ref GlueDatabase
+      # TablePrefix ensures the table is named "processed_adverse_events",
+      # avoiding collision with the quarantine table in the same database.
+      TablePrefix: "processed_"
+      Targets:
+        S3Targets:
+          - Path: !Sub
+              - "s3://${BucketName}/processed/adverse_events/"
+              - BucketName: !ImportValue ctae-processed-bucket-name
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+      Configuration: |
+        {
+          "Version": 1.0,
+          "CrawlerOutput": {
+            "Partitions": { "AddOrUpdateBehavior": "InheritFromTable" },
+            "Tables": { "AddOrUpdateBehavior": "MergeNewColumns" }
+          }
+        }
+      Tags:
+        Project: ClinicalTrialAEPipeline
+        Environment: dev
+
+Outputs:
+
+  GlueDatabaseName:
+    Description: Name of the Glue Data Catalog database
+    Value: !Ref GlueDatabase
+    Export:
+      Name: ctae-glue-database-name
+
+  GlueJobName:
+    Description: Name of the Glue ETL job
+    Value: !Ref GlueETLJob
+    Export:
+      Name: ctae-glue-job-name
+
+  CrawlerName:
+    Description: Name of the Glue Crawler
+    Value: !Ref ProcessedCrawler
+    Export:
+      Name: ctae-crawler-name

@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ClinicalTrialAEPipeline — Athena & Query Layer.
+  Creates an Athena workgroup, a Glue Crawler for the quarantine zone,
+  and saved named queries for common analytical and operational tasks.
+  Depends on: 01-storage.yaml, 02-iam.yaml, 03-glue.yaml.
+
+  Table names after crawlers run:
+    processed_adverse_events  ← valid records (partitioned by study_id)
+    quarantine_adverse_events ← invalid records with validation_error column
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Athena Workgroup
+  # All pipeline queries should run in this workgroup so that results are
+  # written to the dedicated Athena results bucket with SSE-S3 encryption.
+  # BytesScannedCutoffPerQuery caps accidental large scans at 1 GB.
+  # ---------------------------------------------------------------------------
+  AthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: ctae-workgroup
+      Description: Workgroup for Clinical Trial Adverse Event pipeline queries
+      State: ENABLED
+      WorkGroupConfiguration:
+        ResultConfiguration:
+          OutputLocation: !Sub
+            - "s3://${BucketName}/"
+            - BucketName: !ImportValue ctae-athena-results-bucket-name
+          EncryptionConfiguration:
+            EncryptionOption: SSE_S3
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: true
+        BytesScannedCutoffPerQuery: 1073741824  # 1 GB per-query safety cap
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
+  # Glue Crawler — Quarantine Zone
+  # Crawls the quarantine S3 zone so invalid records are also queryable via
+  # Athena for debugging and data quality audits.
+  # TablePrefix "quarantine_" → table name: quarantine_adverse_events
+  # Trigger manually: aws glue start-crawler --name ctae-quarantine-crawler
+  # ---------------------------------------------------------------------------
+  QuarantineCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: ctae-quarantine-crawler
+      Description: Crawls quarantine zone for data quality auditing via Athena
+      Role: !ImportValue ctae-glue-role-arn
+      DatabaseName: !ImportValue ctae-glue-database-name
+      TablePrefix: "quarantine_"
+      Targets:
+        S3Targets:
+          - Path: !Sub
+              - "s3://${BucketName}/quarantine/adverse_events/"
+              - BucketName: !ImportValue ctae-quarantine-bucket-name
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+      Configuration: |
+        {
+          "Version": 1.0,
+          "CrawlerOutput": {
+            "Partitions": { "AddOrUpdateBehavior": "InheritFromTable" },
+            "Tables": { "AddOrUpdateBehavior": "MergeNewColumns" }
+          }
+        }
+      Tags:
+        Project: ClinicalTrialAEPipeline
+        Environment: dev
+
+  # ---------------------------------------------------------------------------
+  # Named Queries — saved in the ctae-workgroup for quick reuse
+  # ---------------------------------------------------------------------------
+
+  QueryPreviewProcessed:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: ctae-preview-processed
+      Description: Preview the 100 most recently ingested valid adverse event records
+      Database: !ImportValue ctae-glue-database-name
+      WorkGroup: !Ref AthenaWorkGroup
+      QueryString: |
+        SELECT
+            subject_id,
+            study_id,
+            adverse_event,
+            severity,
+            onset_date,
+            report_date,
+            ingestion_timestamp
+        FROM processed_adverse_events
+        ORDER BY ingestion_timestamp DESC
+        LIMIT 100;
+
+  QueryCountByStudyAndSeverity:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: ctae-count-by-study-severity
+      Description: Count of adverse events grouped by study and severity level
+      Database: !ImportValue ctae-glue-database-name
+      WorkGroup: !Ref AthenaWorkGroup
+      QueryString: |
+        SELECT
+            study_id,
+            severity,
+            COUNT(*) AS event_count
+        FROM processed_adverse_events
+        GROUP BY study_id, severity
+        ORDER BY study_id, event_count DESC;
+
+  QueryHighSeverityEvents:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: ctae-high-severity-events
+      Description: All SEVERE and LIFE_THREATENING adverse events ordered by onset date
+      Database: !ImportValue ctae-glue-database-name
+      WorkGroup: !Ref AthenaWorkGroup
+      QueryString: |
+        SELECT
+            subject_id,
+            study_id,
+            adverse_event,
+            severity,
+            onset_date,
+            report_date,
+            DATE_DIFF('day', DATE(onset_date), DATE(report_date)) AS days_to_report
+        FROM processed_adverse_events
+        WHERE severity IN ('SEVERE', 'LIFE_THREATENING')
+        ORDER BY onset_date DESC;
+
+  QueryQuarantineAudit:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: ctae-quarantine-audit
+      Description: Inspect invalid records and their validation error reasons
+      Database: !ImportValue ctae-glue-database-name
+      WorkGroup: !Ref AthenaWorkGroup
+      QueryString: |
+        SELECT
+            subject_id,
+            study_id,
+            adverse_event,
+            severity,
+            onset_date,
+            report_date,
+            validation_error,
+            ingestion_timestamp
+        FROM quarantine_adverse_events
+        ORDER BY ingestion_timestamp DESC
+        LIMIT 200;
+
+  QueryQuarantineErrorSummary:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Name: ctae-quarantine-error-summary
+      Description: Summary count of quarantine records by validation error pattern
+      Database: !ImportValue ctae-glue-database-name
+      WorkGroup: !Ref AthenaWorkGroup
+      QueryString: |
+        SELECT
+            validation_error,
+            COUNT(*) AS record_count
+        FROM quarantine_adverse_events
+        GROUP BY validation_error
+        ORDER BY record_count DESC;
+
+Outputs:
+
+  WorkGroupName:
+    Description: Name of the Athena workgroup
+    Value: !Ref AthenaWorkGroup
+    Export:
+      Name: ctae-athena-workgroup-name
+
+  QuarantineCrawlerName:
+    Description: Name of the quarantine Glue Crawler
+    Value: !Ref QuarantineCrawler
+    Export:
+      Name: ctae-quarantine-crawler-name

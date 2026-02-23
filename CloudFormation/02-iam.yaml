@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ClinicalTrialAEPipeline — IAM Layer.
+  Creates execution roles for Glue (ETL + Crawler) and Lambda (S3 trigger).
+  Depends on: 01-storage.yaml (imports bucket ARNs via cross-stack references).
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Glue Service Role
+  # Grants Glue permission to read raw CSV files and write Parquet to
+  # processed and quarantine zones. Also allows CloudWatch Logs access
+  # (via AWSGlueServiceRole managed policy).
+  # ---------------------------------------------------------------------------
+  GlueServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ctae-glue-service-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Includes CloudWatch Logs, Glue Data Catalog, and EC2 network access
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: ctae-glue-s3-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadRawZone
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue ctae-raw-bucket-arn
+                  - !Sub
+                    - "${Arn}/*"
+                    - Arn: !ImportValue ctae-raw-bucket-arn
+
+              - Sid: WriteProcessedZone
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue ctae-processed-bucket-arn
+                  - !Sub
+                    - "${Arn}/*"
+                    - Arn: !ImportValue ctae-processed-bucket-arn
+
+              - Sid: WriteQuarantineZone
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue ctae-quarantine-bucket-arn
+                  - !Sub
+                    - "${Arn}/*"
+                    - Arn: !ImportValue ctae-quarantine-bucket-arn
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
+  # Lambda Execution Role
+  # Grants Lambda permission to:
+  #   - Write logs to CloudWatch (via AWSLambdaBasicExecutionRole)
+  #   - Start and monitor Glue job runs
+  #   - Read objects from the raw bucket (for validating S3 event payloads)
+  # ---------------------------------------------------------------------------
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ctae-lambda-execution-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Includes CloudWatch Logs: CreateLogGroup, CreateLogStream, PutLogEvents
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ctae-lambda-glue-s3-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: TriggerGlueJob
+                Effect: Allow
+                Action:
+                  - glue:StartJobRun
+                  - glue:GetJobRun
+                  - glue:GetJob
+                  - glue:StartCrawler   # needed to trigger crawler after ETL succeeds
+                # Glue job ARNs are not known at IAM creation time; scope is
+                # tightened to job-name level in the Glue stack via conditions.
+                Resource: "*"
+
+              - Sid: ReadRawBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue ctae-raw-bucket-arn
+                  - !Sub
+                    - "${Arn}/*"
+                    - Arn: !ImportValue ctae-raw-bucket-arn
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+Outputs:
+
+  GlueServiceRoleArn:
+    Description: ARN of the Glue service role
+    Value: !GetAtt GlueServiceRole.Arn
+    Export:
+      Name: ctae-glue-role-arn
+
+  GlueServiceRoleName:
+    Description: Name of the Glue service role
+    Value: !Ref GlueServiceRole
+    Export:
+      Name: ctae-glue-role-name
+
+  LambdaExecutionRoleArn:
+    Description: ARN of the Lambda execution role
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: ctae-lambda-role-arn
