@@ -45,6 +45,23 @@ Resources:
           Value: dev
 
   # ---------------------------------------------------------------------------
+  # CloudWatch Log Group for the Lambda function
+  # Explicitly created so it exists before first invocation, has a retention
+  # policy (avoids unlimited log accumulation), and carries project tags.
+  # Lambda writes here automatically via AWSLambdaBasicExecutionRole.
+  # ---------------------------------------------------------------------------
+  TriggerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${TriggerFunction}"
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: ClinicalTrialAEPipeline
+        - Key: Environment
+          Value: dev
+
+  # ---------------------------------------------------------------------------
   # EventBridge Rule 1: S3 ObjectCreated -> Lambda
   # Matches CSV uploads to raw/adverse_events/ in the raw bucket.
   # S3 -> EventBridge forwarding is enabled on the raw bucket (01-storage.yaml).
